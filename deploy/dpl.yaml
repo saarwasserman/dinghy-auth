@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notifications-api
+  labels:
+    app: notifications-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notifications-api
+  template:
+    metadata:
+      labels:
+        app: notifications-api
+    spec:
+      containers:
+      - name: notifications-api
+        image: saarwasserman/dinghy-auth-api:0.1.0
+        imagePullPolicy: Always
+        command: 
+          - ./bin/api
+          - -port=40020
+          - -kafka-host=kafka-service.kafka.svc.cluster.local
+          - -db-dsn=postgres://greenlight:pa55word@localhost:30204/greenlight?sslmode=disable
+          - -cors-trusted-origins="http://localhost:3000"
+        ports:
+        - containerPort: 40020

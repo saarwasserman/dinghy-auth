@@ -17,7 +17,6 @@ import (
 	"google.golang.org/grpc"
 	"saarwasserman.com/auth/internal/data"
 	"saarwasserman.com/auth/internal/jsonlog"
-	"saarwasserman.com/auth/internal/mailer"
 	"saarwasserman.com/auth/internal/vcs"
 
 	users "saarwasserman.com/auth/grpcgen/users/proto"
@@ -41,12 +40,9 @@ type config struct {
 		burst   int
 		enabled bool
 	}
-	smtp struct {
+	notificationsService struct {
 		host     string
 		port     int
-		username string
-		password string
-		sender   string
 	}
 	cors struct {
 		trustedOrigins []string
@@ -58,7 +54,6 @@ type application struct {
 	config config
 	logger *jsonlog.Logger
 	models data.Models
-	mailer mailer.Mailer
 }
 
 func main() {
@@ -79,12 +74,9 @@ func main() {
 	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
 	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
 
-	// mailer
-	flag.StringVar(&cfg.smtp.host, "smtp-host", "sandbox.smtp.mailtrap.io", "SMTP host")
-	flag.IntVar(&cfg.smtp.port, "smtp-port", 2525, "SMTP port")
-	flag.StringVar(&cfg.smtp.username, "smtp-username", os.Getenv("GREENLIGHT_SMTP_USERNAME"), "SMTP username")
-	flag.StringVar(&cfg.smtp.password, "smtp-password", os.Getenv("GREENLIGHT_SMTP_PASSWORD"), "SMTP password")
-	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@greenlight.saarw.net>", "SMTP sender")
+	// notifications service
+	flag.StringVar(&cfg.notificationsService.host, "host", "localhost", "notifications service host")
+	flag.IntVar(&cfg.notificationsService.port, "port", 8090, "notifications service port")
 
 	// cors
 	flag.Func("cors-trusted-origins", "Trusted CORS Origins (space separated)", func(val string) error {
@@ -130,10 +122,9 @@ func main() {
 		config: cfg,
 		logger: logger,
 		models: data.NewModels(db),
-		mailer: mailer.New(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
 	}
 
-	listener, err := net.Listen("tcp", ":8089")
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", app.config.port))
 	if err != nil {
 		log.Fatalf("cannot create listener %s", err)
 		return
