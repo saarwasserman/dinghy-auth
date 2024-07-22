@@ -1,0 +1,14 @@
+FROM golang:1.22
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+COPY . .
+
+# Build
+RUN go build -ldflags='-s' -o=./bin/api ./cmd/api
+
+
+EXPOSE 40020
+
+CMD ["./bin/api"]

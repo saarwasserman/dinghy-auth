@@ -13,13 +13,15 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/grpc/credentials/insecure"
+
 	_ "github.com/lib/pq"
 	"google.golang.org/grpc"
 	"saarwasserman.com/auth/internal/data"
 	"saarwasserman.com/auth/internal/jsonlog"
-	"saarwasserman.com/auth/internal/mailer"
 	"saarwasserman.com/auth/internal/vcs"
 
+	notifications "saarwasserman.com/auth/grpcgen/notifications/proto"
 	users "saarwasserman.com/auth/grpcgen/users/proto"
 )
 
@@ -41,12 +43,9 @@ type config struct {
 		burst   int
 		enabled bool
 	}
-	smtp struct {
+	notificationsService struct {
 		host     string
 		port     int
-		username string
-		password string
-		sender   string
 	}
 	cors struct {
 		trustedOrigins []string
@@ -58,18 +57,18 @@ type application struct {
 	config config
 	logger *jsonlog.Logger
 	models data.Models
-	mailer mailer.Mailer
+	notifier notifications.EMailServiceClient
 }
 
 func main() {
 	var cfg config
 
 	// server
-	flag.IntVar(&cfg.port, "port", 4000, "API Server port")
+	flag.IntVar(&cfg.port, "port", 40020, "API Server port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment(development|staging|production)")
 
 	// db
-	flag.StringVar(&cfg.db.dsn, "db-dsn", "", "PostgreSQL DSN")
+	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("AUTH_DB_DSN"), "PostgreSQL DSN")
 	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connections")
 	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "PostgreSQL max idle connections")
 	flag.StringVar(&cfg.db.maxIdleTime, "db-max-idle-time", "15m", "PostgreSQL max connection idle time")
@@ -79,12 +78,9 @@ func main() {
 	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
 	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
 
-	// mailer
-	flag.StringVar(&cfg.smtp.host, "smtp-host", "sandbox.smtp.mailtrap.io", "SMTP host")
-	flag.IntVar(&cfg.smtp.port, "smtp-port", 2525, "SMTP port")
-	flag.StringVar(&cfg.smtp.username, "smtp-username", os.Getenv("GREENLIGHT_SMTP_USERNAME"), "SMTP username")
-	flag.StringVar(&cfg.smtp.password, "smtp-password", os.Getenv("GREENLIGHT_SMTP_PASSWORD"), "SMTP password")
-	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@greenlight.saarw.net>", "SMTP sender")
+	// notifications service
+	flag.StringVar(&cfg.notificationsService.host, "notifications-service-host", "localhost", "notifications service host")
+	flag.IntVar(&cfg.notificationsService.port, "notifications-service-port", 40010, "notifications service port")
 
 	// cors
 	flag.Func("cors-trusted-origins", "Trusted CORS Origins (space separated)", func(val string) error {
@@ -126,21 +122,34 @@ func main() {
 		return time.Now().Unix()
 	}))
 
+	var opts []grpc.DialOption
+
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	conn, err := grpc.NewClient(fmt.Sprintf("%s:%d", cfg.notificationsService.host, cfg.notificationsService.port), opts...)
+	if err != nil {
+		logger.PrintFatal(err, nil)
+		return
+	}
+
+	defer conn.Close()
+
 	app := &application{
 		config: cfg,
 		logger: logger,
 		models: data.NewModels(db),
-		mailer: mailer.New(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
+		notifier: notifications.NewEMailServiceClient(conn),
 	}
 
-	listener, err := net.Listen("tcp", ":8089")
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", app.config.port))
 	if err != nil {
-		log.Fatalf("cannot create listener %s", err)
+		app.logger.PrintFatal(err, nil)
 		return
 	}
 
 	serviceRegistrar := grpc.NewServer()
 
+	app.logger.PrintInfo(fmt.Sprintf("listening on %s", listener.Addr().String()), nil)
 	users.RegisterUsersServiceServer(serviceRegistrar, app)
 	// reflection.Register(serviceRegistrar)
 	err = serviceRegistrar.Serve(listener)
