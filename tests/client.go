@@ -18,7 +18,7 @@ func main() {
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
-	conn, err := grpc.NewClient("localhost:8089", opts...)
+	conn, err := grpc.NewClient("localhost:40020", opts...)
 	if err != nil {
 		log.Fatalf("fail to dial: %v", err)
 		return
@@ -26,12 +26,12 @@ func main() {
 	defer conn.Close()
 
 	client := users.NewUsersServiceClient(conn)
-	// res, err := client.RegisterUserHandler(context.Background(), &users.UserRequest{ Email: "test2@test2.com",
-	// 	Name: "Test2", Password: "43sdf!4fd",})
+	res, err := client.RegisterUserHandler(context.Background(), &users.UserRequest{ Email: "test1@test.com",
+	Name: "test1", Password: "somepassword",})
 
 	// res, err := client.ActivateUserHandler(context.Background(), &users.ActivationRequest{ TokenPlaintext: "5QWCJ6JKPGIZQ3WFNGMPJ3BHSI"})
 
-	res, err := client.CreateAuthenticationTokenHandler(context.Background(), &users.AuthenticationRequest{Email: "test2@test2.com", Password: "43sdf!4fd"})
+	//res, err := client.CreateAuthenticationTokenHandler(context.Background(), &users.AuthenticationRequest{Email: "test1@test1.com", Password: "43sdf!4fd"})
 	if err != nil {
 		log.Fatal("couldn't greet ", err.Error())
 		return

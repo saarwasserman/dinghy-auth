@@ -1,28 +1,44 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: notifications-api
+  name: auth-api
+  namespace: apps
   labels:
-    app: notifications-api
+    app: auth-api
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: notifications-api
+      app: auth-api
   template:
     metadata:
       labels:
-        app: notifications-api
+        app: auth-api
     spec:
       containers:
-      - name: notifications-api
+      - name: auth-api
         image: saarwasserman/dinghy-auth-api:0.1.0
         imagePullPolicy: Always
+        env:
+          - name: AUTH_DB_DSN
+            valueFrom:
+              secretKeyRef:
+                name: db-credentials
+                key: auth_db_dsn
         command: 
           - ./bin/api
           - -port=40020
-          - -kafka-host=kafka-service.kafka.svc.cluster.local
-          - -db-dsn=postgres://greenlight:pa55word@localhost:30204/greenlight?sslmode=disable
           - -cors-trusted-origins="http://localhost:3000"
+          - -notifications-service-host=notifications-api.apps.svc.cluster.local
+          - -notifications-service-port=40010
         ports:
         - containerPort: 40020
+        resources:
+          limits:
+            memory: "2Gi"
+            cpu: "500m"
+            ephemeral-storage: "2Gi"
+          requests:
+            ephemeral-storage: "1Gi"
+            cpu: "500m"
+            memory: "250Mi"

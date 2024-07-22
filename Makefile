@@ -21,12 +21,12 @@ confirm:
 ## run/api: run the cmd/api application
 .PHONY: run/api
 run/api:
-	@go run ./cmd/api -db-dsn=${GREENLIGHT_DB_DSN} -cors-trusted-origins="http://localhost:3000" -port=4001
+	@go run ./cmd/api -cors-trusted-origins="http://localhost:3000" -port=40020
 
 ## db/psql: connect to the database using psql
 .PHONY: db/psql
 db/psql:
-	psql ${GREENLIGHT_DB_DSN}
+	psql ${AUTH_DB_DSN}
 
 ## db/migrations/new name=$1: create a new database migration
 .PHONY: db/migrations/new
@@ -38,7 +38,7 @@ db/migrations/new:
 .PHONY: db/migrations/up
 db/migrations/up: confirm
 	@echo 'Running up migrations...'
-	migrate -path ./migrations -database ${GREENLIGHT_DB_DSN} up
+	migrate -path ./migrations -database ${AUTH_DB_DSN} up
 
 # ==================================================================================== #
 # QUALITY CONTROL
@@ -85,6 +85,7 @@ push/docker/api: build/docker/api
 	@echo 'Building and Pushing dinghy-auth-api docker image...'
 	docker push saarwasserman/dinghy-auth-api:0.1.0
 
-.PHONY: push/docker/all
-push/docker/all: push/docker/api
-	@echo 'Building and Pushing all project images...'
+.PHONY: deploy/k8s/api
+deploy/k8s/api:
+	@echo 'Deploying auth api to k8s...'
+	kubectl apply -f deploy ./deploy/api

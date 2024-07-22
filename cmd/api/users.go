@@ -6,9 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
 	notifications "saarwasserman.com/auth/grpcgen/notifications/proto"
@@ -56,19 +54,7 @@ func (app *application) RegisterUserHandler(ctx context.Context, req *users.User
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	var opts []grpc.DialOption
-
-	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-
-	conn, err := grpc.NewClient("localhost:8090", opts...)
-	if err != nil {
-		app.logger.PrintFatal(err, nil)
-		return nil, err
-	}
-	defer conn.Close()
-
-	emailClient := notifications.NewEMailServiceClient(conn)
-	_, err = emailClient.SendActivationEmail(context.Background(), &notifications.SendActivationEmailRequest{
+	_, err = app.notifier.SendActivationEmail(context.Background(), &notifications.SendActivationEmailRequest{
 		Recipient: user.Email,
 		UserId:    strconv.FormatInt(user.ID, 10),
 		Token:     token.Plaintext,
