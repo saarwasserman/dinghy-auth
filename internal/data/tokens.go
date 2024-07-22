@@ -8,7 +8,7 @@ import (
 	"encoding/base32"
 	"time"
 
-	"saarwasserman.com/auth/internal/validator"
+	"github.com/saarwasserman/auth/internal/validator"
 )
 
 const (

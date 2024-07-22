@@ -1,4 +1,4 @@
-module saarwasserman.com/auth
+module github.com/saarwasserman/auth
 
 go 1.22.3
 

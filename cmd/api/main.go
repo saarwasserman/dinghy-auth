@@ -16,13 +16,13 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	_ "github.com/lib/pq"
+	"github.com/saarwasserman/auth/internal/data"
+	"github.com/saarwasserman/auth/internal/jsonlog"
+	"github.com/saarwasserman/auth/internal/vcs"
 	"google.golang.org/grpc"
-	"saarwasserman.com/auth/internal/data"
-	"saarwasserman.com/auth/internal/jsonlog"
-	"saarwasserman.com/auth/internal/vcs"
 
-	notifications "saarwasserman.com/auth/grpcgen/notifications/proto"
-	users "saarwasserman.com/auth/grpcgen/users/proto"
+	"github.com/saarwasserman/auth/protogen/auth"
+	"github.com/saarwasserman/auth/protogen/notifications"
 )
 
 var (
@@ -53,7 +53,7 @@ type config struct {
 }
 
 type application struct {
-	users.UnimplementedUsersServiceServer
+	auth.UnimplementedUsersServiceServer
 	config config
 	logger *jsonlog.Logger
 	models data.Models
@@ -150,7 +150,7 @@ func main() {
 	serviceRegistrar := grpc.NewServer()
 
 	app.logger.PrintInfo(fmt.Sprintf("listening on %s", listener.Addr().String()), nil)
-	users.RegisterUsersServiceServer(serviceRegistrar, app)
+	auth.RegisterUsersServiceServer(serviceRegistrar, app)
 	// reflection.Register(serviceRegistrar)
 	err = serviceRegistrar.Serve(listener)
 	if err != nil {

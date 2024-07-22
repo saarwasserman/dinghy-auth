@@ -7,8 +7,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/saarwasserman/auth/internal/validator"
 	"golang.org/x/crypto/bcrypt"
-	"saarwasserman.com/auth/internal/validator"
 )
 
 var (

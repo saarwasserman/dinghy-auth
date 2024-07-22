@@ -27,4 +27,4 @@ go.work.sum
 .envrc
 
 # generated protovol buffer files
-grpcgen/
+protogen/

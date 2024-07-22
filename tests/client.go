@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	users "saarwasserman.com/auth/grpcgen/users/proto"
+	"github.com/saarwasserman/auth/protogen/auth"
 )
 
 func main() {
@@ -25,8 +25,8 @@ func main() {
 	}
 	defer conn.Close()
 
-	client := users.NewUsersServiceClient(conn)
-	res, err := client.RegisterUserHandler(context.Background(), &users.UserRequest{ Email: "test1@test.com",
+	client := auth.NewUsersServiceClient(conn)
+	res, err := client.RegisterUserHandler(context.Background(), &auth.UserRequest{ Email: "test1@test.com",
 	Name: "test1", Password: "somepassword",})
 
 	// res, err := client.ActivateUserHandler(context.Background(), &users.ActivationRequest{ TokenPlaintext: "5QWCJ6JKPGIZQ3WFNGMPJ3BHSI"})

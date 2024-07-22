@@ -9,13 +9,13 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	notifications "saarwasserman.com/auth/grpcgen/notifications/proto"
-	users "saarwasserman.com/auth/grpcgen/users/proto"
-	"saarwasserman.com/auth/internal/data"
-	"saarwasserman.com/auth/internal/validator"
+	"github.com/saarwasserman/auth/internal/data"
+	"github.com/saarwasserman/auth/internal/validator"
+	"github.com/saarwasserman/auth/protogen/auth"
+	"github.com/saarwasserman/auth/protogen/notifications"
 )
 
-func (app *application) RegisterUserHandler(ctx context.Context, req *users.UserRequest) (*users.UserResponse, error) {
+func (app *application) RegisterUserHandler(ctx context.Context, req *auth.UserRequest) (*auth.UserResponse, error) {
 	user := &data.User{
 		Name:      req.Name,
 		Email:     req.Email,
@@ -64,7 +64,7 @@ func (app *application) RegisterUserHandler(ctx context.Context, req *users.User
 		return nil, err
 	}
 
-	return &users.UserResponse{
+	return &auth.UserResponse{
 		Id:        user.ID,
 		Email:     user.Email,
 		Name:      user.Name,
@@ -73,7 +73,7 @@ func (app *application) RegisterUserHandler(ctx context.Context, req *users.User
 	}, nil
 }
 
-func (app *application) ActivateUserHandler(ctx context.Context, req *users.ActivationRequest) (*users.UserResponse, error) {
+func (app *application) ActivateUserHandler(ctx context.Context, req *auth.ActivationRequest) (*auth.UserResponse, error) {
 
 	v := validator.New()
 
@@ -109,7 +109,7 @@ func (app *application) ActivateUserHandler(ctx context.Context, req *users.Acti
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	return &users.UserResponse{
+	return &auth.UserResponse{
 		Id:        user.ID,
 		Email:     user.Email,
 		Name:      user.Name,
@@ -118,7 +118,7 @@ func (app *application) ActivateUserHandler(ctx context.Context, req *users.Acti
 	}, nil
 }
 
-func (app *application) CreateAuthenticationTokenHandler(ctx context.Context, req *users.AuthenticationRequest) (*users.AuthenticationResponse, error) {
+func (app *application) CreateAuthenticationTokenHandler(ctx context.Context, req *auth.AuthenticationRequest) (*auth.AuthenticationResponse, error) {
 
 	v := validator.New()
 
@@ -153,7 +153,7 @@ func (app *application) CreateAuthenticationTokenHandler(ctx context.Context, re
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	return &users.AuthenticationResponse{
+	return &auth.AuthenticationResponse{
 		TokenPlaintext: token.Plaintext,
 		Expiry:         token.Expiry.UnixMilli(),
 	}, nil
