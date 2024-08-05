@@ -31,6 +31,7 @@ spec:
           - -cors-trusted-origins="http://localhost:3000"
           - -notifications-service-host=notifications-api.apps.svc.cluster.local
           - -notifications-service-port=40010
+          - -cache-endpoint=redis-svc.redis.svc.cluster.local:6379
         ports:
         - containerPort: 40020
         resources:

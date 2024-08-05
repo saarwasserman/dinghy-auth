@@ -150,6 +150,40 @@ func (m UserModel) GetByEmail(email string) (*User, error) {
 	return &user, nil
 }
 
+func (m UserModel) GetByUserId(userId int64) (*User, error) {
+
+	query := `
+		SELECT id, created_at, name, email, password_hash, activated, version
+		FROM users
+		WHERE id = $1`
+
+	var user User
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := m.DB.QueryRowContext(ctx, query, userId).Scan(
+		&user.ID,
+		&user.CreatedAt,
+		&user.Name,
+		&user.Email,
+		&user.Password.hash,
+		&user.Activated,
+		&user.Version)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &user, nil
+}
+
+
 func (m UserModel) Update(user *User) error {
 	query := `
 		UPDATE users
@@ -184,43 +218,35 @@ func (m UserModel) Update(user *User) error {
 	return nil
 }
 
-func (m UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error) {
+func (m UserModel) GetForToken(tokenScope, tokenPlaintext string) (int64, error) {
 
 	tokenHash := sha256.Sum256([]byte(tokenPlaintext))
 
 	query := `
-		SELECT id, created_at, name, email, password_hash, activated, version
-		FROM users
-		INNER JOIN tokens
-		ON users.id = tokens.user_id
+		SELECT user_id
+		FROM tokens
 		WHERE hash = $1
 		AND tokens.scope = $2
 		AND tokens.expiry > $3`
 
 	args := []any{tokenHash[:], tokenScope, time.Now()}
 
-	var user User
+	//var user User
+	var userId int64
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := m.DB.QueryRowContext(ctx, query, args...).Scan(
-		&user.ID,
-		&user.CreatedAt,
-		&user.Name,
-		&user.Email,
-		&user.Password.hash,
-		&user.Activated,
-		&user.Version)
+	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&userId)
 
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
-			return nil, ErrRecordNotFound
+			return -1, ErrRecordNotFound
 		default:
-			return nil, err
+			return -1, err
 		}
 	}
 
-	return &user, nil
+	return userId, nil
 }
