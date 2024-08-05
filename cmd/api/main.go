@@ -16,11 +16,14 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 	"github.com/saarwasserman/auth/internal/data"
 	"github.com/saarwasserman/auth/internal/jsonlog"
 	"github.com/saarwasserman/auth/internal/vcs"
 	"google.golang.org/grpc"
 
+	middlewareAuth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/selector"
 	"github.com/saarwasserman/auth/protogen/auth"
 	"github.com/saarwasserman/auth/protogen/notifications"
 )
@@ -32,6 +35,9 @@ var (
 type config struct {
 	port int
 	env  string
+	session struct {
+		inactivityTime int
+	}
 	db   struct {
 		dsn          string
 		maxOpenConns int
@@ -50,14 +56,18 @@ type config struct {
 	cors struct {
 		trustedOrigins []string
 	}
+	cache struct {
+		endpoint string
+	}
 }
 
 type application struct {
-	auth.UnimplementedUsersServiceServer
+	auth.UnimplementedAuthenticationServer
 	config config
 	logger *jsonlog.Logger
 	models data.Models
-	notifier notifications.EMailServiceClient
+	notifier notifications.NotificationsClient
+	// cache *redis.Client
 }
 
 func main() {
@@ -66,6 +76,9 @@ func main() {
 	// server
 	flag.IntVar(&cfg.port, "port", 40020, "API Server port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment(development|staging|production)")
+
+	// session
+	flag.IntVar(&cfg.session.inactivityTime, "session-inactivity-time", 5, "User inactivity duration in minutes")
 
 	// db
 	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("AUTH_DB_DSN"), "PostgreSQL DSN")
@@ -81,6 +94,9 @@ func main() {
 	// notifications service
 	flag.StringVar(&cfg.notificationsService.host, "notifications-service-host", "localhost", "notifications service host")
 	flag.IntVar(&cfg.notificationsService.port, "notifications-service-port", 40010, "notifications service port")
+
+	// cache
+	flag.StringVar(&cfg.cache.endpoint, "cache-endpoint", os.Getenv("CACHE_ENDPOINT"), "Cache Endpoint")
 
 	// cors
 	flag.Func("cors-trusted-origins", "Trusted CORS Origins (space separated)", func(val string) error {
@@ -134,11 +150,27 @@ func main() {
 
 	defer conn.Close()
 
+	ctx := context.Background()
+
+	// try redis
+	cache := redis.NewClient(&redis.Options{
+		Addr:	  cfg.cache.endpoint,
+	})
+
+	res, err := cache.Set(ctx, "name", "saar", 0).Result()
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	fmt.Println(res)
+	
 	app := &application{
 		config: cfg,
 		logger: logger,
 		models: data.NewModels(db),
-		notifier: notifications.NewEMailServiceClient(conn),
+		notifier: notifications.NewNotificationsClient(conn),
+		//cache: cache,
 	}
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", app.config.port))
@@ -147,11 +179,16 @@ func main() {
 		return
 	}
 
-	serviceRegistrar := grpc.NewServer()
+	serviceRegistrar := grpc.NewServer(grpc.ChainUnaryInterceptor(
+		// authentication
+		selector.UnaryServerInterceptor(
+	   		middlewareAuth.UnaryServerInterceptor(app.Authenticator),
+	   		selector.MatchFunc(app.AuthMatcher),
+		),  
+	))
 
 	app.logger.PrintInfo(fmt.Sprintf("listening on %s", listener.Addr().String()), nil)
-	auth.RegisterUsersServiceServer(serviceRegistrar, app)
-	// reflection.Register(serviceRegistrar)
+	auth.RegisterAuthenticationServer(serviceRegistrar, app)
 	err = serviceRegistrar.Serve(listener)
 	if err != nil {
 		log.Fatalf("cannot serve %s", err)

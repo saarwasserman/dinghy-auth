@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base32"
+	"errors"
 	"time"
 
 	"github.com/saarwasserman/auth/internal/validator"
@@ -98,3 +99,42 @@ func (m TokenModel) DeleteAllForUser(scope string, userID int64) error {
 	_, err := m.DB.ExecContext(ctx, query, scope, userID)
 	return err
 }
+
+
+func (t TokenModel) GetForToken(tokenScope, tokenPlaintext string) (*Token, error) {
+
+	tokenHash := sha256.Sum256([]byte(tokenPlaintext))
+
+	query := `
+		SELECT hash, user_id, expiry, scope 
+		FROM tokens
+		WHERE hash = $1
+		AND tokens.scope = $2
+		AND tokens.expiry > $3`
+
+	args := []any{tokenHash[:], tokenScope, time.Now()}
+
+	//var user User
+	var token Token
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := t.DB.QueryRowContext(ctx, query, args...).Scan(
+		&token.Hash,
+		&token.UserID,
+		&token.Expiry,
+		&token.Scope)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &token, nil
+}
+

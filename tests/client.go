@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/saarwasserman/auth/internal/data"
 	"github.com/saarwasserman/auth/protogen/auth"
 )
 
@@ -25,17 +25,26 @@ func main() {
 	}
 	defer conn.Close()
 
-	client := auth.NewUsersServiceClient(conn)
-	res, err := client.RegisterUserHandler(context.Background(), &auth.UserRequest{ Email: "test1@test.com",
-	Name: "test1", Password: "somepassword",})
 
-	// res, err := client.ActivateUserHandler(context.Background(), &users.ActivationRequest{ TokenPlaintext: "5QWCJ6JKPGIZQ3WFNGMPJ3BHSI"})
-
-	//res, err := client.CreateAuthenticationTokenHandler(context.Background(), &users.AuthenticationRequest{Email: "test1@test1.com", Password: "43sdf!4fd"})
+	clientTokens := auth.NewAuthenticationClient(conn)
+	res, err := clientTokens.CreateToken(context.Background(), &auth.TokenCreationRequest{Scope: data.ScopeAuthentication, UserId: 11})
 	if err != nil {
 		log.Fatal("couldn't greet ", err.Error())
 		return
 	}
 
-	fmt.Println(res)
+
+	// with authorization header
+	// md := metadata.Pairs("timestamp", time.Now().Format(timestampFormat))
+	// ctx := metadata.NewOutgoingContext(context.Background(), md)
+
+	// // Make RPC using the context with the metadata.
+	// var header, trailer metadata.MD
+	// r, err := c.UnaryEcho(ctx, &pb.EchoRequest{Message: message}, grpc.Header(&header), grpc.Trailer(&trailer))
+	// if err != nil {
+	// 	log.Fatalf("failed to call UnaryEcho: %v", err)
+	// }
+
+	// if t, ok := header["timestamp"]; ok {
+
 }

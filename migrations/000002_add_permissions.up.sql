@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS permissions(
 );
 
 CREATE TABLE IF NOT EXISTS users_permissions(
-    user_id bigint NOT NULL REFERENCES users ON DELETE CASCADE,
+    user_id bigint NOT NULL,
     permission_id bigint NOT NULL REFERENCES permissions ON DELETE CASCADE,
     PRIMARY KEY (user_id, permission_id)
 );
