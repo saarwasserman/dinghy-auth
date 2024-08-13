@@ -100,7 +100,6 @@ func (m TokenModel) DeleteAllForUser(scope string, userID int64) error {
 	return err
 }
 
-
 func (t TokenModel) GetForToken(tokenScope, tokenPlaintext string) (*Token, error) {
 
 	tokenHash := sha256.Sum256([]byte(tokenPlaintext))
@@ -137,4 +136,3 @@ func (t TokenModel) GetForToken(tokenScope, tokenPlaintext string) (*Token, erro
 
 	return &token, nil
 }
-

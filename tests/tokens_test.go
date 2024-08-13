@@ -7,14 +7,22 @@ import (
 
 	"github.com/saarwasserman/auth/internal/data"
 	"github.com/saarwasserman/auth/protogen/auth"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func TestCreateToken(t *testing.T) {
-	authClient, err := NewAuthClient("localhost", 40020)
+	var opts []grpc.DialOption
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	conn, err := grpc.NewClient("localhost:40020", opts...)
 	if err != nil {
-		log.Fatal("couldn't greet ", err.Error())
+		log.Fatalf("fail to dial: %v", err)
 		return
 	}
+	defer conn.Close()
+
+	authClient := auth.NewAuthenticationClient(conn)
 
 	res, err := authClient.CreateToken(context.Background(), &auth.TokenCreationRequest{Scope: data.ScopeAuthentication, UserId: 11})
 	if err != nil {

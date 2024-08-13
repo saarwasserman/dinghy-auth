@@ -51,7 +51,6 @@ func (m PasswordModel) CreatePasswordForUserId(userID int64, password_hash []byt
 	return nil
 }
 
-
 func (m PasswordModel) UpdatePasswordForUserId(userID int64, password_hash string) error {
 	query := `
 		UPDATE credentials
@@ -73,4 +72,3 @@ func (m PasswordModel) UpdatePasswordForUserId(userID int64, password_hash strin
 
 	return nil
 }
-

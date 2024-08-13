@@ -11,7 +11,7 @@ var (
 )
 
 type Models struct {
-	Passwords PasswordModel
+	Passwords   PasswordModel
 	Permissions PermissionModel
 	Tokens      TokenModel
 	Users       UserModel
@@ -19,7 +19,7 @@ type Models struct {
 
 func NewModels(db *sql.DB) Models {
 	return Models{
-		Passwords: PasswordModel{DB: db},
+		Passwords:   PasswordModel{DB: db},
 		Permissions: PermissionModel{DB: db},
 		Tokens:      TokenModel{DB: db},
 		Users:       UserModel{DB: db},

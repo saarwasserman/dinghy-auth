@@ -3,32 +3,27 @@ package main
 import (
 	"context"
 	"log"
-	"regexp"
 	"testing"
 
 	"github.com/saarwasserman/auth/internal/data"
 	"github.com/saarwasserman/auth/protogen/auth"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
-func Hello(name string) (string, error) {
-	return name, nil
-}
-
-func TestHelloName(t *testing.T) {
-	name := "Gladys"
-	want := regexp.MustCompile(`\b` + name + `\b`)
-	msg, err := Hello("Gladys")
-	if !want.MatchString(msg) || err != nil {
-		t.Fatalf(`Hello("Gladys") = %q, %v, want match for %#q, nil`, msg, err, want)
-	}
-}
-
 func TestAuthenticate(t *testing.T) {
-	authClient, err := NewAuthClient("localhost", 40020)
+
+	var opts []grpc.DialOption
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	conn, err := grpc.NewClient("localhost:40020", opts...)
 	if err != nil {
-		log.Fatal("couldn't authenticate", err.Error())
+		log.Fatalf("fail to dial: %v", err)
 		return
 	}
+	defer conn.Close()
+
+	authClient := auth.NewAuthenticationClient(conn)
 
 	// get user details
 	// TODO: get existing token or create a new one (fetch from tokens' tests)

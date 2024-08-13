@@ -9,7 +9,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-
 func (app *application) SetPassword(ctx context.Context, req *auth.SetPasswordRequest) (*auth.SetPasswordResponse, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), 12)
 	if err != nil {

@@ -33,12 +33,12 @@ var (
 )
 
 type config struct {
-	port int
-	env  string
+	port    int
+	env     string
 	session struct {
 		inactivityTime int
 	}
-	db   struct {
+	db struct {
 		dsn          string
 		maxOpenConns int
 		maxIdleConns int
@@ -50,8 +50,8 @@ type config struct {
 		enabled bool
 	}
 	notificationsService struct {
-		host     string
-		port     int
+		host string
+		port int
 	}
 	cors struct {
 		trustedOrigins []string
@@ -63,9 +63,9 @@ type config struct {
 
 type application struct {
 	auth.UnimplementedAuthenticationServer
-	config config
-	logger *jsonlog.Logger
-	models data.Models
+	config   config
+	logger   *jsonlog.Logger
+	models   data.Models
 	notifier notifications.NotificationsClient
 	// cache *redis.Client
 }
@@ -154,7 +154,7 @@ func main() {
 
 	// try redis
 	cache := redis.NewClient(&redis.Options{
-		Addr:	  cfg.cache.endpoint,
+		Addr: cfg.cache.endpoint,
 	})
 
 	res, err := cache.Set(ctx, "name", "saar", 0).Result()
@@ -164,11 +164,11 @@ func main() {
 	}
 
 	fmt.Println(res)
-	
+
 	app := &application{
-		config: cfg,
-		logger: logger,
-		models: data.NewModels(db),
+		config:   cfg,
+		logger:   logger,
+		models:   data.NewModels(db),
 		notifier: notifications.NewNotificationsClient(conn),
 		//cache: cache,
 	}
@@ -182,9 +182,9 @@ func main() {
 	serviceRegistrar := grpc.NewServer(grpc.ChainUnaryInterceptor(
 		// authentication
 		selector.UnaryServerInterceptor(
-	   		middlewareAuth.UnaryServerInterceptor(app.Authenticator),
-	   		selector.MatchFunc(app.AuthMatcher),
-		),  
+			middlewareAuth.UnaryServerInterceptor(app.Authenticator),
+			selector.MatchFunc(app.AuthMatcher),
+		),
 	))
 
 	app.logger.PrintInfo(fmt.Sprintf("listening on %s", listener.Addr().String()), nil)

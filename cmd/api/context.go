@@ -13,11 +13,11 @@ func (app *application) contextSetUserId(ctx context.Context, userId int64) cont
 	return ctx
 }
 
-func (app *application) contextGetUserId(ctx context.Context) int64 {
-	userId, ok := ctx.Value(userIdContextKey).(int64)
-	if !ok {
-		panic("missing userId value in request context")
-	}
+// func (app *application) contextGetUserId(ctx context.Context) int64 {
+// 	userId, ok := ctx.Value(userIdContextKey).(int64)
+// 	if !ok {
+// 		panic("missing userId value in request context")
+// 	}
 
-	return userId
-}
+// 	return userId
+// }

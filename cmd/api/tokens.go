@@ -11,7 +11,7 @@ import (
 
 func (app *application) CreateToken(ctx context.Context, req *auth.TokenCreationRequest) (*auth.TokenCreationResponse, error) {
 	app.models.Tokens.DeleteAllForUser(req.Scope, req.UserId)
-	
+
 	token, err := app.models.Tokens.New(req.UserId, 24*time.Hour, req.Scope)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())

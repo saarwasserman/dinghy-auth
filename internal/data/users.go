@@ -183,7 +183,6 @@ func (m UserModel) GetByUserId(userId int64) (*User, error) {
 	return &user, nil
 }
 
-
 func (m UserModel) Update(user *User) error {
 	query := `
 		UPDATE users
