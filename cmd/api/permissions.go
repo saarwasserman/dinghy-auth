@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// TODO: update cache
 func (app *application) AddPermissionForUser(ctx context.Context, req *auth.AddPermissionForUserRequest) (*auth.AddPermissionForUserResponse, error) {
 	err := app.models.Permissions.AddForUser(req.UserId, req.Codes...)
 	if err != nil {
@@ -17,6 +18,7 @@ func (app *application) AddPermissionForUser(ctx context.Context, req *auth.AddP
 	return &auth.AddPermissionForUserResponse{}, nil
 }
 
+// TODO: update cache
 func (app *application) RemovePermissionForUser(ctx context.Context, req *auth.RemovePermissionForUserRequest) (*auth.RemovePermissionForUserResponse, error) {
 	err := app.models.Permissions.DeleteForUser(req.UserId, req.Codes...)
 	if err != nil {

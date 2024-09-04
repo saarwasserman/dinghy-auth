@@ -11,31 +11,37 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (app *application) isValidAuthenticationToken(token_scope, token_plaintext string) (*data.Token, error) {
+
+func (app *application) Authenticate(ctx context.Context, req *auth.AuthenticationRequest) (*auth.AuthenticationResponse, error) {
+
+	tokenPlaintext := req.TokenPlaintext
+	tokenScope := req.TokenScope
+
 	v := validator.New()
 
-	if data.ValidateTokenPlaintext(v, token_plaintext); !v.Valid() {
+	if data.ValidateTokenPlaintext(v, tokenPlaintext); !v.Valid() {
 		return nil, status.Error(codes.Unauthenticated, "invalid auth token")
 	}
 
-	token, err := app.models.Tokens.GetForToken(token_scope, token_plaintext)
-	if err != nil {
-		switch {
-		case errors.Is(err, data.ErrRecordNotFound):
-			return nil, status.Error(codes.Unauthenticated, "invalid auth token")
-		default:
-			return nil, status.Error(codes.Unauthenticated, err.Error())
+
+	// check in cache
+	token := app.models.Tokens.GetTokenFromCache(tokenScope, tokenPlaintext)
+	var err error
+	// if not in cance go to db
+	if token == nil {
+		token, err = app.models.Tokens.GetForToken(tokenScope, tokenPlaintext)
+		if err != nil {
+			switch {
+			case errors.Is(err, data.ErrRecordNotFound):
+				return nil, status.Error(codes.Unauthenticated, "invalid auth token")
+			default:
+				return nil, status.Error(codes.Unauthenticated, err.Error())
+			}
+		} else {
+			go func() {
+				app.models.Tokens.UpdateCache(token)
+			}()
 		}
-	}
-
-	return token, nil
-}
-
-func (app *application) Authenticate(ctx context.Context, req *auth.AuthenticationRequest) (*auth.AuthenticationResponse, error) {
-	token, err := app.isValidAuthenticationToken(req.TokenScope, req.TokenPlaintext)
-	if err != nil {
-		app.logger.PrintError(err, nil)
-		return nil, err
 	}
 
 	return &auth.AuthenticationResponse{

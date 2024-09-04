@@ -17,12 +17,21 @@ func (app *application) CreateToken(ctx context.Context, req *auth.TokenCreation
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
+	// cache
+	go func () {
+		err = app.models.Tokens.UpdateCache(token)
+		if err != nil {
+			app.logger.PrintError(err, nil)
+		}
+	}()
+
 	return &auth.TokenCreationResponse{
 		TokenPlaintext: token.Plaintext,
 		Expiry:         token.Expiry.UnixMilli(),
 	}, nil
 }
 
+// TODO: update cache
 func (app *application) DeleteAllTokensForUser(ctx context.Context, req *auth.TokensDeletionRequest) (*auth.TokensDeletionRequest, error) {
 
 	err := app.models.Tokens.DeleteAllForUser(req.Scope, req.UserId)
@@ -30,6 +39,11 @@ func (app *application) DeleteAllTokensForUser(ctx context.Context, req *auth.To
 		app.logger.PrintError(err, nil)
 		return nil, err
 	}
+
+	// cache
+	go func() {
+		app.models.Tokens.DeleteTokenCacheForUser(req.UserId)
+	} 
 
 	return &auth.TokensDeletionRequest{}, nil
 }

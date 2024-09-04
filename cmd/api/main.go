@@ -67,7 +67,7 @@ type application struct {
 	logger   *jsonlog.Logger
 	models   data.Models
 	notifier notifications.NotificationsClient
-	// cache *redis.Client
+	cache	 *redis.Client
 }
 
 func main() {
@@ -142,13 +142,13 @@ func main() {
 
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
-	conn, err := grpc.NewClient(fmt.Sprintf("%s:%d", cfg.notificationsService.host, cfg.notificationsService.port), opts...)
+	notifierConn, err := grpc.NewClient(fmt.Sprintf("%s:%d", cfg.notificationsService.host, cfg.notificationsService.port), opts...)
 	if err != nil {
 		logger.PrintFatal(err, nil)
 		return
 	}
 
-	defer conn.Close()
+	defer notifierConn.Close()
 
 	ctx := context.Background()
 
@@ -156,21 +156,22 @@ func main() {
 	cache := redis.NewClient(&redis.Options{
 		Addr: cfg.cache.endpoint,
 	})
+	defer cache.Close()
 
-	res, err := cache.Set(ctx, "name", "saar", 0).Result()
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
+	// res, err := cache.Set(ctx, "name", "saar", 0).Result()
+	// if err != nil {
+	// 	log.Fatal(err)
+	// 	return
+	// }
 
 	fmt.Println(res)
 
 	app := &application{
 		config:   cfg,
 		logger:   logger,
-		models:   data.NewModels(db),
-		notifier: notifications.NewNotificationsClient(conn),
-		//cache: cache,
+		models:   data.NewModels(db, cache),
+		notifier: notifications.NewNotificationsClient(notifierConn),
+		cache: 	  cache,
 	}
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", app.config.port))

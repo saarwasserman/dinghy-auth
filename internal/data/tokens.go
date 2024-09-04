@@ -7,8 +7,10 @@ import (
 	"database/sql"
 	"encoding/base32"
 	"errors"
+	"fmt"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/saarwasserman/auth/internal/validator"
 )
 
@@ -20,10 +22,14 @@ const (
 type Token struct {
 	Plaintext string    `json:"token"`
 	Hash      []byte    `json:"-"`
-	UserID    int64     `json:"-"`
-	Expiry    time.Time `json:"expiry"`
+	UserID    int64     `json:"-" redis:"userId"`
+	Expiry    time.Time `json:"expiry" redis:"expiry"`
 	Scope     string    `json:"-"`
 }
+
+const tokenCacheKeyPrefix = "tokens:hash"
+const userTokensCacheKeyPrefix = "tokens:user"
+
 
 func generateToken(userID int64, ttl time.Duration, scope string) (*Token, error) {
 	token := &Token{
@@ -53,6 +59,7 @@ func ValidateTokenPlaintext(v *validator.Validator, tokenPlaintext string) {
 
 type TokenModel struct {
 	DB *sql.DB
+	Cache *redis.Client
 }
 
 func (m TokenModel) New(userID int64, ttl time.Duration, scope string) (*Token, error) {
@@ -84,6 +91,9 @@ func (m TokenModel) Insert(token *Token) error {
 	if err != nil {
 		return err
 	}
+
+	// cache
+	m.Cache.SAdd(context.Background(), "")
 
 	return nil
 }
@@ -135,4 +145,85 @@ func (t TokenModel) GetForToken(tokenScope, tokenPlaintext string) (*Token, erro
 	}
 
 	return &token, nil
+}
+
+
+// cache //
+func (t TokenModel) GetTokenFromCache(tokenScope, tokenPlaintext string) (*Token) {
+	
+	tokenHash := sha256.Sum256([]byte(tokenPlaintext))
+
+	token := &Token{
+		Plaintext: tokenPlaintext,
+		Hash: tokenHash[:],
+		Scope: tokenScope,
+
+	}
+
+	ctx := context.Background()
+
+	err := t.Cache.HMGet(ctx, fmt.Sprintf("%s:%s", tokenCacheKeyPrefix, tokenHash), "userId", "expiry").Scan(&token)
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil
+	}
+
+	// Handle expiry, get from db
+	if token.Expiry.Before(time.Now().UTC()) {
+		t.Cache.Del(ctx, string(token.Hash))
+		return nil
+	}
+
+	return token
+}
+
+
+func (t TokenModel) UpdateCache(token *Token) error {
+	ctx := context.Background()
+
+	var updateToken *redis.IntCmd
+	t.Cache.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		updateToken = pipe.HSet(context.Background(),
+						 fmt.Sprintf("%s:%s", tokenCacheKeyPrefix, token.Plaintext),
+						 "userId", token.UserID, "expiry", token.Expiry)
+
+		pipe.LPush(ctx, fmt.Sprintf("%s:%d", userTokensCacheKeyPrefix, token.UserID), token.Hash)
+
+		return nil
+	})
+
+	updateToken.Result()
+
+
+
+	// err := t.Cache.HSet(context.Background(), fmt.Sprintf("%s:%s", tokenCacheKeyPrefix, token.Plaintext),
+	// 	"userId", token.UserID, "expiry", token.Expiry).Err()
+	// if err != nil {
+	// 	return err 
+	// }
+
+	// t.Cache.LPush(ctx, fmt.Sprintf("%s:%d", userTokensCacheKeyPrefix, token.UserID), token.Hash)
+
+	return nil
+}
+
+
+func (t TokenModel) DeleteTokensCacheForUser(scope, userId string) (error) {
+	ctx := context.Background()
+	// get the list of tokens of user
+	tokenHashes, err := t.Cache.LRange(ctx, fmt.Sprintf("%s:%s", userTokensCacheKeyPrefix, userId), 0, -1).Result()
+	if err != nil {
+		fmt.Println(err.Error())
+		return err
+	}
+
+	// delete token by refernce
+	for _, tokenHash := range tokenHashes {
+		_, err := t.Cache.Del(ctx, fmt.Sprintf("%s:%s", tokenCacheKeyPrefix, tokenHash)).Result()
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+	}
+
+	return nil
 }
