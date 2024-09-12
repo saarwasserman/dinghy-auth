@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"testing"
 
@@ -29,7 +30,7 @@ func TestAuthenticate(t *testing.T) {
 	// TODO: get existing token or create a new one (fetch from tokens' tests)
 	res, err := authClient.Authenticate(context.Background(), &auth.AuthenticationRequest{
 		TokenScope:     data.ScopeAuthentication,
-		TokenPlaintext: "VISIAMIDA5YZ4Y26N5TPLFLR44",
+		TokenPlaintext: "TN3RCK2FO5EYAZKBEUJYRCLQ4Y",
 	})
 	if err != nil {
 		t.Errorf("error: %s", err.Error())
@@ -39,4 +40,6 @@ func TestAuthenticate(t *testing.T) {
 	if res.UserId >= 0 {
 		log.Print("found a user with that token")
 	}
+
+	fmt.Println(res)
 }

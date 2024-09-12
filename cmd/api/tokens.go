@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+
 func (app *application) CreateToken(ctx context.Context, req *auth.TokenCreationRequest) (*auth.TokenCreationResponse, error) {
 	app.models.Tokens.DeleteAllForUser(req.Scope, req.UserId)
 
@@ -18,12 +19,17 @@ func (app *application) CreateToken(ctx context.Context, req *auth.TokenCreation
 	}
 
 	// cache
-	go func () {
+	app.background(func() {
+		err := app.models.Tokens.DeleteTokensCacheForUser(req.Scope, req.UserId)
+		if err != nil {
+					app.logger.PrintError(err, nil)
+		}
+
 		err = app.models.Tokens.UpdateCache(token)
 		if err != nil {
 			app.logger.PrintError(err, nil)
 		}
-	}()
+	})
 
 	return &auth.TokenCreationResponse{
 		TokenPlaintext: token.Plaintext,
@@ -31,7 +37,7 @@ func (app *application) CreateToken(ctx context.Context, req *auth.TokenCreation
 	}, nil
 }
 
-// TODO: update cache
+
 func (app *application) DeleteAllTokensForUser(ctx context.Context, req *auth.TokensDeletionRequest) (*auth.TokensDeletionRequest, error) {
 
 	err := app.models.Tokens.DeleteAllForUser(req.Scope, req.UserId)
@@ -41,9 +47,12 @@ func (app *application) DeleteAllTokensForUser(ctx context.Context, req *auth.To
 	}
 
 	// cache
-	go func() {
-		app.models.Tokens.DeleteTokenCacheForUser(req.UserId)
-	} 
+	app.background(func() {
+		err := app.models.Tokens.DeleteAllForUser(req.Scope, req.UserId)
+		if err != nil {
+			app.logger.PrintError(err, nil)
+		}
+	})
 
 	return &auth.TokensDeletionRequest{}, nil
 }

@@ -7,10 +7,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net"
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc/credentials/insecure"
@@ -18,12 +18,11 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 	"github.com/saarwasserman/auth/internal/data"
+	"github.com/saarwasserman/auth/internal/interceptors/ratelimit"
 	"github.com/saarwasserman/auth/internal/jsonlog"
 	"github.com/saarwasserman/auth/internal/vcs"
 	"google.golang.org/grpc"
 
-	middlewareAuth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
-	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/selector"
 	"github.com/saarwasserman/auth/protogen/auth"
 	"github.com/saarwasserman/auth/protogen/notifications"
 )
@@ -67,7 +66,9 @@ type application struct {
 	logger   *jsonlog.Logger
 	models   data.Models
 	notifier notifications.NotificationsClient
+	limiter  *ratelimit.RateLimiter
 	cache	 *redis.Client
+	wg		 sync.WaitGroup
 }
 
 func main() {
@@ -118,6 +119,7 @@ func main() {
 	db, err := openDB(cfg)
 	if err != nil {
 		logger.PrintFatal(err, nil)
+		// return
 	} else {
 		logger.PrintInfo("database connection pool established", nil)
 	}
@@ -150,47 +152,55 @@ func main() {
 
 	defer notifierConn.Close()
 
-	ctx := context.Background()
-
 	// try redis
 	cache := redis.NewClient(&redis.Options{
 		Addr: cfg.cache.endpoint,
 	})
 	defer cache.Close()
 
-	// res, err := cache.Set(ctx, "name", "saar", 0).Result()
-	// if err != nil {
-	// 	log.Fatal(err)
-	// 	return
-	// }
-
-	fmt.Println(res)
+	limiter := ratelimit.NewRateLimiter(cfg.limiter.rps, cfg.limiter.burst, cfg.limiter.enabled)
 
 	app := &application{
 		config:   cfg,
 		logger:   logger,
 		models:   data.NewModels(db, cache),
 		notifier: notifications.NewNotificationsClient(notifierConn),
+		limiter:  limiter,
 		cache: 	  cache,
 	}
 
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", app.config.port))
-	if err != nil {
-		app.logger.PrintFatal(err, nil)
-		return
-	}
+	// listener, err := net.Listen("tcp", fmt.Sprintf(":%d", app.config.port))
+	// if err != nil {
+	// 	app.logger.PrintFatal(err, nil)
+	// 	return
+	// }
 
-	serviceRegistrar := grpc.NewServer(grpc.ChainUnaryInterceptor(
-		// authentication
-		selector.UnaryServerInterceptor(
-			middlewareAuth.UnaryServerInterceptor(app.Authenticator),
-			selector.MatchFunc(app.AuthMatcher),
-		),
-	))
+	// // realip
+	// headers := []string{realip.XForwardedFor, realip.XRealIp}
+	// realIpOpts := []realip.Option{
+	// 	realip.WithHeaders(headers),
+	// 	realip.WithTrustedProxiesCount(1),
+	// }
 
-	app.logger.PrintInfo(fmt.Sprintf("listening on %s", listener.Addr().String()), nil)
-	auth.RegisterAuthenticationServer(serviceRegistrar, app)
-	err = serviceRegistrar.Serve(listener)
+	// serviceRegistrar := grpc.NewServer(grpc.ChainUnaryInterceptor(
+	// 	// authentication
+	// 	selector.UnaryServerInterceptor(
+	// 		middlewareAuth.UnaryServerInterceptor(app.Authenticator),
+	// 		selector.MatchFunc(app.AuthMatcher),
+	// 	),
+	// 	// ratelimit
+	// 	selector.UnaryServerInterceptor(
+	// 		ratelimit.UnaryServerInterceptor(app.limiter),
+	// 		selector.MatchFunc(app.RatelimitMatcher),
+	// 	),
+	// 	// realip
+	// 	realip.UnaryServerInterceptorOpts(realIpOpts...),
+	// ))
+
+	// app.logger.PrintInfo(fmt.Sprintf("listening on %s", listener.Addr().String()), nil)
+	// auth.RegisterAuthenticationServer(serviceRegistrar, app)
+	// err = serviceRegistrar.Serve(listener)
+	err = app.serve()
 	if err != nil {
 		log.Fatalf("cannot serve %s", err)
 		return

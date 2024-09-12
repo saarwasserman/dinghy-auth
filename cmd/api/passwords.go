@@ -10,7 +10,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// TODO: update cache - maybe log out user if it changes and delete token ???
 func (app *application) SetPassword(ctx context.Context, req *auth.SetPasswordRequest) (*auth.SetPasswordResponse, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), 12)
 	if err != nil {
@@ -21,7 +20,7 @@ func (app *application) SetPassword(ctx context.Context, req *auth.SetPasswordRe
 
 	// after password change delete all tokens for user
 	app.models.Tokens.DeleteAllForUser(data.ScopeAuthentication, req.UserId)
-	app.models.Tokens.Del
+	app.models.Tokens.DeleteTokensCacheForUser(data.ScopeAuthentication, req.UserId)
 
 	return &auth.SetPasswordResponse{}, nil
 }

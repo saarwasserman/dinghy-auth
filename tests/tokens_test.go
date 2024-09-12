@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"testing"
 
@@ -33,4 +34,6 @@ func TestCreateToken(t *testing.T) {
 	if len(res.TokenPlaintext) != 26 {
 		t.Errorf("token length is not equal to 26")
 	}
+
+	fmt.Println(res)
 }

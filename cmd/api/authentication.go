@@ -23,7 +23,6 @@ func (app *application) Authenticate(ctx context.Context, req *auth.Authenticati
 		return nil, status.Error(codes.Unauthenticated, "invalid auth token")
 	}
 
-
 	// check in cache
 	token := app.models.Tokens.GetTokenFromCache(tokenScope, tokenPlaintext)
 	var err error
@@ -38,10 +37,15 @@ func (app *application) Authenticate(ctx context.Context, req *auth.Authenticati
 				return nil, status.Error(codes.Unauthenticated, err.Error())
 			}
 		} else {
-			go func() {
-				app.models.Tokens.UpdateCache(token)
-			}()
+			app.background(func() {
+				err := app.models.Tokens.UpdateCache(token)
+				if err != nil {
+					app.logger.PrintError(err, nil)
+				}
+			})
 		}
+	} else {
+		app.logger.PrintInfo("got token from cache", nil)
 	}
 
 	return &auth.AuthenticationResponse{

@@ -50,3 +50,11 @@ func (app *application) AuthMatcher(ctx context.Context, callMeta interceptors.C
 	var methods []string
 	return slices.Contains(methods, callMeta.Method)
 }
+
+
+func (app *application) RatelimitMatcher(ctx context.Context, callMeta interceptors.CallMeta) bool {
+	// var requiredAuthenticationServices = []string{auth.UsersService_ServiceDesc.ServiceName}
+	// methods := []string{auth.Authentication_ServiceDesc.Methods[1].MethodName}
+	var methods []string
+	return slices.Contains(methods, callMeta.Method)
+}

@@ -162,7 +162,7 @@ func (t TokenModel) GetTokenFromCache(tokenScope, tokenPlaintext string) (*Token
 
 	ctx := context.Background()
 
-	err := t.Cache.HMGet(ctx, fmt.Sprintf("%s:%s", tokenCacheKeyPrefix, tokenHash), "userId", "expiry").Scan(&token)
+	err := t.Cache.HMGet(ctx, fmt.Sprintf("%s:%s", tokenCacheKeyPrefix, tokenHash), "userId", "expiry").Scan(token)
 	if err != nil {
 		fmt.Println(err.Error())
 		return nil
@@ -184,7 +184,7 @@ func (t TokenModel) UpdateCache(token *Token) error {
 	var updateToken *redis.IntCmd
 	t.Cache.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 		updateToken = pipe.HSet(context.Background(),
-						 fmt.Sprintf("%s:%s", tokenCacheKeyPrefix, token.Plaintext),
+						 fmt.Sprintf("%s:%s", tokenCacheKeyPrefix, token.Hash),
 						 "userId", token.UserID, "expiry", token.Expiry)
 
 		pipe.LPush(ctx, fmt.Sprintf("%s:%d", userTokensCacheKeyPrefix, token.UserID), token.Hash)
@@ -192,37 +192,37 @@ func (t TokenModel) UpdateCache(token *Token) error {
 		return nil
 	})
 
-	updateToken.Result()
-
-
-
-	// err := t.Cache.HSet(context.Background(), fmt.Sprintf("%s:%s", tokenCacheKeyPrefix, token.Plaintext),
-	// 	"userId", token.UserID, "expiry", token.Expiry).Err()
-	// if err != nil {
-	// 	return err 
-	// }
-
-	// t.Cache.LPush(ctx, fmt.Sprintf("%s:%d", userTokensCacheKeyPrefix, token.UserID), token.Hash)
+	_, err := updateToken.Result()
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
 
-func (t TokenModel) DeleteTokensCacheForUser(scope, userId string) (error) {
+func (t TokenModel) DeleteTokensCacheForUser(scope string, userId int64) (error) {
 	ctx := context.Background()
 	// get the list of tokens of user
-	tokenHashes, err := t.Cache.LRange(ctx, fmt.Sprintf("%s:%s", userTokensCacheKeyPrefix, userId), 0, -1).Result()
+	tokenHashes, err := t.Cache.LRange(ctx, fmt.Sprintf("%s:%d", userTokensCacheKeyPrefix, userId), 0, -1).Result()
 	if err != nil {
 		fmt.Println(err.Error())
 		return err
 	}
 
-	// delete token by refernce
+	// delete token by reference
 	for _, tokenHash := range tokenHashes {
 		_, err := t.Cache.Del(ctx, fmt.Sprintf("%s:%s", tokenCacheKeyPrefix, tokenHash)).Result()
 		if err != nil {
 			fmt.Println(err.Error())
+			return err
 		}
+	}
+
+	_, err = t.Cache.Del(ctx, fmt.Sprintf("%s:%d", userTokensCacheKeyPrefix, userId)).Result()
+	if err != nil {
+		fmt.Println(err.Error())
+		return err
 	}
 
 	return nil
