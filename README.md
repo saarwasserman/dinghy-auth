@@ -17,9 +17,9 @@ Note: check the deploy yaml files and set the required secrets and env vars
 
 ## Databases
 
-<b>PostgreSQL<b/>
+<b>PostgreSQL</b>
 
-`database: auth`
+`database: dinghy-auth`
 
 `user: dinghy-auth`
 

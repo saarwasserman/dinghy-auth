@@ -50,13 +50,15 @@ type config struct {
 		enabled bool
 	}
 	notificationsService struct {
-		host string
-		port int
+		enabled bool
+		host    string
+		port    int
 	}
 	cors struct {
 		trustedOrigins []string
 	}
 	cache struct {
+		enabled  bool
 		endpoint string
 	}
 }
@@ -67,7 +69,7 @@ type application struct {
 	logger   *jsonlog.Logger
 	models   data.Models
 	notifier notifications.NotificationsClient
-	// cache *redis.Client
+	cache    *redis.Client
 }
 
 func main() {
@@ -94,9 +96,11 @@ func main() {
 	// notifications service
 	flag.StringVar(&cfg.notificationsService.host, "notifications-service-host", "localhost", "notifications service host")
 	flag.IntVar(&cfg.notificationsService.port, "notifications-service-port", 40010, "notifications service port")
+	flag.BoolVar(&cfg.notificationsService.enabled, "notifications-enabled", false, "enable notifications through notification service")
 
 	// cache
 	flag.StringVar(&cfg.cache.endpoint, "cache-endpoint", os.Getenv("CACHE_ENDPOINT"), "Cache Endpoint")
+	flag.BoolVar(&cfg.cache.enabled, "cache-enabled", false, "enable caching")
 
 	// cors
 	flag.Func("cors-trusted-origins", "Trusted CORS Origins (space separated)", func(val string) error {
@@ -138,39 +142,53 @@ func main() {
 		return time.Now().Unix()
 	}))
 
+	// setup notifications service client
+	var notifier notifications.NotificationsClient
 	var opts []grpc.DialOption
 
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
-	conn, err := grpc.NewClient(fmt.Sprintf("%s:%d", cfg.notificationsService.host, cfg.notificationsService.port), opts...)
-	if err != nil {
-		logger.PrintFatal(err, nil)
-		return
+	if !cfg.notificationsService.enabled {
+		logger.PrintInfo("notifications service is disabled", nil)
+	} else {
+		logger.PrintInfo("connecting to notifications service...", nil)
+		conn, err := grpc.NewClient(fmt.Sprintf("%s:%d", cfg.notificationsService.host, cfg.notificationsService.port), opts...)
+		if err != nil {
+			logger.PrintFatal(err, nil)
+			return
+		}
+
+		defer conn.Close()
+
+		notifier = notifications.NewNotificationsClient(conn)
 	}
 
-	defer conn.Close()
+	// setup cache
+	var cache *redis.Client
+	if !cfg.cache.enabled {
+		logger.PrintInfo("caching is disabled", nil)
+	} else {
+		logger.PrintInfo("enabling caching...", nil)
+		cache = redis.NewClient(&redis.Options{
+			Addr: cfg.cache.endpoint,
+		})
 
-	ctx := context.Background()
+		defer cache.Close()
 
-	// try redis
-	cache := redis.NewClient(&redis.Options{
-		Addr: cfg.cache.endpoint,
-	})
-
-	res, err := cache.Set(ctx, "name", "saar", 0).Result()
-	if err != nil {
-		log.Fatal(err)
-		return
+		// test cache connection
+		_, err := cache.Ping(context.Background()).Result()
+		if err != nil {
+			logger.PrintFatal(err, nil)
+			return
+		}
 	}
-
-	fmt.Println(res)
 
 	app := &application{
 		config:   cfg,
 		logger:   logger,
 		models:   data.NewModels(db),
-		notifier: notifications.NewNotificationsClient(conn),
-		//cache: cache,
+		notifier: notifier,
+		cache:    cache,
 	}
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", app.config.port))
